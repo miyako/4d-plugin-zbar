@@ -31,5 +31,5 @@ READ PICTURE FILE(Get 4D folder(Current resources folder)+$1+".png";$p)
 $code:=ZBAR ($p;$values;$types;$addonvalues;$confidences)
 ```
 
-Value of the first found barcode is returned. ``$values``. ``$types``. ``$addonvalues`` area text arrays. ``confidences`` is a long int array.
+Value of the first found barcode is returned. ``$values``, ``$types``, ``$addonvalues`` area text arrays. ``confidences`` is a long int array.
 
