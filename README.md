@@ -5,14 +5,13 @@ Barcode scanner based on zbar 0.11
 
 | carbon | cocoa | win32 | win64 |
 |:------:|:-----:|:---------:|:---------:|
-|🆗|🆗|🚫|🚫|
+|🆗|🆗|🆗|🆗|
 
 Supported barcode types
 
 ```
 @since 0.11: CODE93, CODABAR, DATABAR
 @since 0.10: QRCODE
-@since 0.6: PDF417 (not working?)
 @since 0.4: ISBN10, ISBN13, I25, CODE39
 @since 0.1: EAN2, EAN5, EAN8, UPCE, UPCA, EAN13, COMPOSITE, CODE128
 ```
