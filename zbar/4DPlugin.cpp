@@ -51,10 +51,12 @@ void ZBAR(sLONG_PTR *pResult, PackagePtr pParams)
 	ARRAY_TEXT Param3;
 	ARRAY_TEXT Param4;
 	ARRAY_LONGINT Param5;
+	ARRAY_LONGINT Param6;
 	C_TEXT returnValue;
 
 	Param1.fromParamAtIndex(pParams, 1);
-
+	Param6.fromParamAtIndex(pParams, 6);
+	
 //	PA_Picture gs = Param1.createGrayScale();
 	PA_Picture gs = Param1.getPicture();
 
@@ -108,17 +110,36 @@ void ZBAR(sLONG_PTR *pResult, PackagePtr pParams)
 			CGContextDrawImage(ctx, rect, image);
 			
 			size_t *pixels = (size_t *)CGBitmapContextGetData (ctx);
-			
-			uint32_t pixel, y8;
+
+			size_t pixel, y8;
 			size_t i = 0;
-			
+#if __LP64__
+			BOOL alt = false;
+			size_t j = 0;
+#endif
 			for(size_t y = 0; y < h; y++) {
-				PA_YieldAbsolute();
 				for(size_t x = 0; x < w; x++) {
-					pixel = pixels[y*w+x];
+#if __LP64__
+					if(!alt)
+					{
+						pixel = pixels[j];
+						y8 = (pixel >> 24) & 0xFF;
+					}
+					else
+					{
+						pixel = pixels[j];
+						y8 = (pixel >> 56) & 0xFF;
+						j++;
+					}
+					buf[i] = y8;
+					i++;
+					alt = !alt;
+#else
+					pixel = pixels[i];
 					y8 = (pixel >> 24) & 0xFF;
 					buf[i] = y8;
 					i++;
+#endif
 				}
 			}
 			CGContextRelease(ctx);
@@ -155,27 +176,12 @@ void ZBAR(sLONG_PTR *pResult, PackagePtr pParams)
 		/* create a reader */
 		zbar_image_scanner_t *zScanner = zbar_image_scanner_create();
 		
-		zbar_image_scanner_set_config(zScanner, ZBAR_NONE, ZBAR_CFG_ENABLE, 0);
-		zbar_image_scanner_set_config(zScanner, ZBAR_NONE, ZBAR_CFG_MIN_LEN, 0);
-		
-		/* configure the reader */
-		zbar_image_scanner_set_config(zScanner, ZBAR_EAN13, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_EAN2, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_EAN5, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_EAN8, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_UPCA, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_UPCE, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_ISBN10, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_ISBN13, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_I25, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_DATABAR, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_DATABAR_EXP, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_CODABAR, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_CODE39, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_CODE93, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_CODE128, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_QRCODE, ZBAR_CFG_ENABLE, 1);
-		zbar_image_scanner_set_config(zScanner, ZBAR_PDF417, ZBAR_CFG_ENABLE, 1);
+		if(Param6.getSize() > 1){
+			zbar_image_scanner_set_config(zScanner, ZBAR_NONE, ZBAR_CFG_ENABLE, 0);
+			for(unsigned int i = 1; i < Param6.getSize(); ++i){
+				zbar_image_scanner_set_config(zScanner, (zbar_symbol_type_t)Param6.getIntValueAtIndex(i), ZBAR_CFG_ENABLE, 1);
+			}
+		}
 		
 		/* wrap image data */
 		zbar_image_t *zImage = zbar_image_create();
@@ -204,16 +210,6 @@ void ZBAR(sLONG_PTR *pResult, PackagePtr pParams)
 				
 				count++;
 				
-#define BUFFER_SIZE 1024
-				char *xml = (char *)malloc(BUFFER_SIZE);
-				unsigned int xmlbuflen = BUFFER_SIZE;
-				if(xml)
-				{
-//					@see http://zbar.sourceforge.net/2008/barcode.xsd
-					char *p = zbar_symbol_xml(symbol, &xml, &xmlbuflen);
-					printf("%s", p);
-					free(p);
-				}
 				const char *zData = zbar_symbol_get_data(symbol);
 				zbar_symbol_type_t symType = zbar_symbol_get_type(symbol);
 				
