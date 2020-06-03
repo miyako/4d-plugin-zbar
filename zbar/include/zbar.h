@@ -1258,7 +1258,7 @@ zbar_image_scanner_get_results(const zbar_image_scanner_t *scanner);
  * @since 0.9 - changed to only accept grayscale images
  */
 extern int zbar_scan_image(zbar_image_scanner_t *scanner,
-                           zbar_image_t *image, void (*_PA_YieldAbsolute)(void));
+                           zbar_image_t *image, void (*_PA_YieldAbsolute)(void), size_t interval);
 
 /*@}*/
 
