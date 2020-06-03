@@ -21,3 +21,7 @@ Barcode scanner based on zbar 0.11
 ```
 
 **Caution**: The syntax has changed in ``2.0.0``!
+
+### Syntax
+
+[miyako.github.io](https://miyako.github.io/2020/06/03/4d-plugin-zbar.html)
