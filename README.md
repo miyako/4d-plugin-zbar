@@ -3,6 +3,8 @@
 [![license](https://img.shields.io/github/license/miyako/4d-plugin-zbar)](LICENSE)
 ![downloads](https://img.shields.io/github/downloads/miyako/4d-plugin-zbar/total)
 
+**Note**: for v17 and earlier, move `manifest.json` to `Contents`
+
 # 4d-plugin-zbar
 Barcode scanner based on zbar 0.11
 
@@ -14,6 +16,8 @@ Barcode scanner based on zbar 0.11
 @since 0.4: ISBN10, ISBN13, I25, CODE39
 @since 0.1: EAN2, EAN5, EAN8, UPCE, UPCA, EAN13, COMPOSITE, CODE128
 ```
+
+PDF417 does not seen to work 
 
 **Caution**: The syntax has changed in ``2.0.0``!
 
