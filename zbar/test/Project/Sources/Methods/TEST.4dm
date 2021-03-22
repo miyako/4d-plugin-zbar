@@ -9,23 +9,14 @@ For ($i;1;Size of array:C274($paths))
 	
 	$path:=$paths{$i}
 	
-	Case of 
-		: ($path="@pdf417@")
-			
-			  //pdf417 is not working
-			
-		Else 
-			
-			READ PICTURE FILE:C678($path;$image)
-			
-			$result:=ZBAR ($image)
-			
-			If ($result.success=False:C215)
-				
-				TRACE:C157  //resolution issue?
-				
-			End if 
-			
-	End case 
+	READ PICTURE FILE:C678($path;$image)
+	
+	$result:=ZBAR ($image)
+	
+	If ($result.success=False:C215)
+		
+		TRACE:C157  //resolution issue?
+		  //pdf417 is not working
+	End if 
 	
 End for 
