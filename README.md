@@ -8,6 +8,8 @@ Barcode scanner based on zbar 0.11
 
 * switch to homebrew `0.23.90`
 
+* **TODO**: for windows maybe use https://github.com/miyako/lib-zbar/tree/master
+
 * Supported barcode types
 
 ```
