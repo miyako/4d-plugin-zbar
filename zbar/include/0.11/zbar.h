@@ -23,8 +23,6 @@
 #ifndef _ZBAR_H_
 #define _ZBAR_H_
 
-#include <stdint.h>
-
 /** @file
  * ZBar Barcode Reader C API definition
  */
@@ -104,14 +102,8 @@ typedef enum zbar_symbol_type_e {
     ZBAR_CODE39      =     39,  /**< Code 39. @since 0.4 */
     ZBAR_PDF417      =     57,  /**< PDF417. @since 0.6 */
     ZBAR_QRCODE      =     64,  /**< QR Code. @since 0.10 */
-    ZBAR_SQCODE      =     80,  /**< SQ Code. @since 0.20.1 */
     ZBAR_CODE93      =     93,  /**< Code 93. @since 0.11 */
     ZBAR_CODE128     =    128,  /**< Code 128 */
-
-    /*
-     * Please see _zbar_get_symbol_hash() if adding
-     * anything after 128
-     */
 
     /** mask for base symbol type.
      * @deprecated in 0.11, remove this from existing code
@@ -171,7 +163,6 @@ typedef enum zbar_config_e {
     ZBAR_CFG_ADD_CHECK,         /**< enable check digit when optional */
     ZBAR_CFG_EMIT_CHECK,        /**< return check digit when present */
     ZBAR_CFG_ASCII,             /**< enable full ASCII character set */
-    ZBAR_CFG_BINARY,            /**< don't convert binary data to text */
     ZBAR_CFG_NUM,               /**< number of boolean decoder configs */
 
     ZBAR_CFG_MIN_LEN = 0x20,    /**< minimum data length for valid decode */
@@ -180,7 +171,6 @@ typedef enum zbar_config_e {
     ZBAR_CFG_UNCERTAINTY = 0x40,/**< required video consistency frames */
 
     ZBAR_CFG_POSITION = 0x80,   /**< enable scanner to collect position data */
-    ZBAR_CFG_TEST_INVERTED,     /**< if fails to decode, test inverted */
 
     ZBAR_CFG_X_DENSITY = 0x100, /**< image scanner vertical scan density */
     ZBAR_CFG_Y_DENSITY,         /**< image scanner horizontal scan density */
@@ -205,71 +195,13 @@ typedef enum zbar_modifier_e {
     ZBAR_MOD_NUM,
 } zbar_modifier_t;
 
-typedef enum video_control_type_e {
-    VIDEO_CNTL_INTEGER = 1,
-    VIDEO_CNTL_MENU,
-    VIDEO_CNTL_BUTTON,
-    VIDEO_CNTL_INTEGER64,
-    VIDEO_CNTL_STRING,
-    VIDEO_CNTL_BOOLEAN,
-} video_control_type_t;
-
-/** store video control menu
- * @param name name of the menu item
- * @param val integer value associated with the item
- */
-typedef struct video_control_menu_s {
-    char *name;
-    int64_t value;
-} video_control_menu_t;
-
-/** store video controls
- * @param name name of the control
- * @param group name of the control group/class
- * @param type type of the control
- * @param min minimum value of control (if control is integer)
- * @param max maximum value of control (if control is integer)
- * @param def default value of control (if control is integer)
- * @param step increment steps (if control is integer)
- * @param menu menu array
- * @param menu_size menu size
- * @since 0.20
- */
-typedef struct video_controls_s {
-    char *name;
-    char *group;
-    video_control_type_t type;
-
-    int64_t min, max, def;
-    uint64_t step;
-
-    unsigned int menu_size;
-    video_control_menu_t *menu;
-
-    void *next;
-
-    // video drivers may add extra private data in the end of this struct
-} video_controls_t;
-
-/** store a video resolution
- * @param width width of the video window
- * @param height length of the video window
- * @param max_fps maximum streaming speed, in frames per second
- * @since 0.22
- */
-struct video_resolution_s {
-    unsigned int width, height;
-    float max_fps;
-};
-
 /** retrieve runtime library version information.
  * @param major set to the running major version (unless NULL)
  * @param minor set to the running minor version (unless NULL)
  * @returns 0
  */
 extern int zbar_version(unsigned *major,
-                        unsigned *minor,
-			unsigned *patch);
+                        unsigned *minor);
 
 /** set global library debug level.
  * @param verbosity desired debug level.  higher values create more spew
@@ -568,9 +500,7 @@ zbar_symbol_set_first_unfiltered(const zbar_symbol_set_t *symbols);
 /*@{*/
 
 struct zbar_image_s;
-/**
- * zbar_image_t: opaque image object.
- */
+/** opaque image object. */
 typedef struct zbar_image_s zbar_image_t;
 
 /** cleanup handler callback function.
@@ -909,24 +839,6 @@ extern int zbar_processor_set_config(zbar_processor_t *processor,
                                      zbar_config_t config,
                                      int value);
 
-/** set video control value
- * @returns 0 for success, non-0 for failure
- * @since 0.20
- * @see zbar_video_set_control()
- */
-extern int zbar_processor_set_control (zbar_processor_t *processor,
-                                       const char *control_name,
-                                       int value);
-
-/** get video control value
- * @returns 0 for success, non-0 for failure
- * @since 0.20
- * @see zbar_video_get_control()
- */
-extern int zbar_processor_get_control (zbar_processor_t *processor,
-                                       const char *control_name,
-                                       int *value);
-
 /** parse configuration string using zbar_parse_config()
  * and apply to processor using zbar_processor_set_config().
  * @returns 0 for success, non-0 for failure
@@ -944,7 +856,7 @@ static inline int zbar_processor_parse_config (zbar_processor_t *processor,
            zbar_processor_set_config(processor, sym, cfg, val));
 }
 
-/** retrieve the current state of the output window.
+/** retrieve the current state of the ouput window.
  * @returns 1 if the output window is currently displayed, 0 if not.
  * @returns -1 if an error occurs
  */
@@ -1005,12 +917,6 @@ extern int zbar_process_one(zbar_processor_t *processor,
  */
 extern int zbar_process_image(zbar_processor_t *processor,
                               zbar_image_t *image);
-
-/** enable dbus IPC API.
- * @returns 0 successful
- */
-int zbar_processor_request_dbus(zbar_processor_t *proc,
-                                int req_dbus_enabled);
 
 /** display detail for last processor error to stderr.
  * @returns a non-zero value suitable for passing to exit()
@@ -1133,41 +1039,6 @@ extern int zbar_video_enable(zbar_video_t *video,
  * @returns NULL if video is not enabled or an error occurs
  */
 extern zbar_image_t *zbar_video_next_image(zbar_video_t *video);
-
-/** set video control value (integer).
- * @returns 0 for success, non-0 for failure
- * @since 0.20
- * @see zbar_processor_set_control()
- */
-extern int zbar_video_set_control (zbar_video_t *video,
-                                   const char *control_name,
-                                   int value);
-
-
-/** get video control value (integer).
- * @returns 0 for success, non-0 for failure
- * @since 0.20
- * @see zbar_processor_get_control()
- */
-extern int zbar_video_get_control (zbar_video_t *video,
-                                   const char *control_name,
-                                   int *value);
-
-/** get available controls from video source
- * @returns 0 for success, non-0 for failure
- * @since 0.20
- */
-extern struct video_controls_s
-*zbar_video_get_controls (const zbar_video_t *video,
-                          int index);
-
-/** get available video resolutions from video source
- * @returns 0 for success, non-0 for failure
- * @since 0.22
- */
-extern struct video_resolution_s
-*zbar_video_get_resolutions (const zbar_video_t *vdo,
-                             int index);
 
 /** display detail for last video error to stderr.
  * @returns a non-zero value suitable for passing to exit()
@@ -1321,13 +1192,6 @@ zbar_image_scanner_set_data_handler(zbar_image_scanner_t *scanner,
                                     const void *userdata);
 
 
-/** request sending decoded codes via D-Bus
- * @see zbar_processor_parse_config()
- * @since 0.21
- */
-extern int zbar_image_scanner_request_dbus(zbar_image_scanner_t *scanner,
-                                           int req_dbus_enabled);
-
 /** set config for indicated symbology (0 for all) to specified value.
  * @returns 0 for success, non-0 for failure (config does not apply to
  * specified symbology, or value out of range)
@@ -1338,16 +1202,6 @@ extern int zbar_image_scanner_set_config(zbar_image_scanner_t *scanner,
                                          zbar_symbol_type_t symbology,
                                          zbar_config_t config,
                                          int value);
-
-/** get config for indicated symbology
- * @returns 0 for success, non-0 for failure (config does not apply to
- * specified symbology, or value out of range). On success, *value is filled.
- * @since 0.22
- */
-extern int zbar_image_scanner_get_config(zbar_image_scanner_t *scanner,
-                                         zbar_symbol_type_t symbology,
-                                         zbar_config_t config,
-                                         int *value);
 
 /** parse configuration string using zbar_parse_config()
  * and apply to image scanner using zbar_image_scanner_set_config().
@@ -1404,7 +1258,7 @@ zbar_image_scanner_get_results(const zbar_image_scanner_t *scanner);
  * @since 0.9 - changed to only accept grayscale images
  */
 extern int zbar_scan_image(zbar_image_scanner_t *scanner,
-                           zbar_image_t *image);
+                           zbar_image_t *image, void (*_PA_YieldAbsolute)(void), size_t interval);
 
 /*@}*/
 
@@ -1440,17 +1294,6 @@ extern int zbar_decoder_set_config(zbar_decoder_t *decoder,
                                    zbar_symbol_type_t symbology,
                                    zbar_config_t config,
                                    int value);
-
-
-/** get config for indicated symbology
- * @returns 0 for success, non-0 for failure (config does not apply to
- * specified symbology, or value out of range). On success, *value is filled.
- * @since 0.22
- */
-extern int zbar_decoder_get_config(zbar_decoder_t *decoder,
-                                   zbar_symbol_type_t symbology,
-                                   zbar_config_t config,
-                                   int *value);
 
 /** parse configuration string using zbar_parse_config()
  * and apply to decoder using zbar_decoder_set_config().

@@ -65,14 +65,6 @@ public:
         zbar_image_scanner_set_data_handler(_scanner, handler, &handler);
     }
 
-    /// request sending decoded codes via D-Bus
-    /// @see zbar_processor_parse_config()
-    /// @since 0.21
-    int request_dbus(bool enabled)
-    {
-        return zbar_image_scanner_request_dbus(_scanner, enabled);
-    }
-
     /// set config for indicated symbology (0 for all) to specified value.
     /// @see zbar_image_scanner_set_config()
     /// @since 0.4
@@ -82,17 +74,6 @@ public:
     {
         return(zbar_image_scanner_set_config(_scanner, symbology,
                                               config, value));
-    }
-
-    /// set config for indicated symbology (0 for all) to specified value.
-    /// @see zbar_image_scanner_set_config()
-    /// @since 0.22
-    int get_config (zbar_symbol_type_t symbology,
-                    zbar_config_t config,
-                    int &value)
-    {
-        return(zbar_image_scanner_get_config(_scanner, symbology,
-                                              config, &value));
     }
 
     /// set config parsed from configuration string.
@@ -129,7 +110,7 @@ public:
     /// see zbar_scan_image()
     int scan (Image& image)
     {
-        return(zbar_scan_image(_scanner, image));
+        return(zbar_scan_image(_scanner, image, NULL, 0));
     }
 
     /// scan for symbols in provided image.

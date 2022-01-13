@@ -161,63 +161,6 @@ public:
             throw_exception(_video);
     }
 
-    /// get the information about a control at a given index
-    /// see zbar_video_get_controls()
-    /// @since 0.11
-    struct video_controls_s *get_controls(int index)
-    {
-        return(zbar_video_get_controls(_video, index));
-    }
-
-    /// set the value on an integer control
-    /// see zbar_video_set_control_n()
-    /// @since 0.11
-    int set_control (const char *name,
-                     int value)
-    {
-        return zbar_video_set_control (_video, name, value);
-    }
-
-    /// set the value on a boolean control
-    /// see zbar_video_set_control_b()
-    /// @since 0.11
-    int set_control (const char *name,
-                     bool value)
-    {
-        return zbar_video_set_control (_video, name, value ? 1 : 0);
-    }
-
-    /// get the value on a boolean control
-    /// see zbar_video_get_control_b()
-    /// @since 0.11
-    int get_control (const char *name,
-                     int *value)
-    {
-        return zbar_video_get_control (_video, name, value);
-    }
-
-    /// get the value on an integer control
-    /// see zbar_video_get_control_n()
-    /// @since 0.11
-    int get_control (const char *name,
-                     bool *value)
-    {
-        int __value;
-        int ret = zbar_video_get_control (_video, name, &__value);
-
-        *value =  __value ? true : false;
-
-        return ret;
-    }
-
-    /// get the information about a control at a given index
-    /// see zbar_video_get_resolutions()
-    /// @since 0.22
-    struct video_resolution_s *get_resolution(int index)
-    {
-        return(zbar_video_get_resolutions(_video, index));
-    }
-
 private:
     zbar_video_t *_video;
 };

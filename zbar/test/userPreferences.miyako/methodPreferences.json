@@ -1,4 +1,4 @@
-﻿{
+{
 	"Sources/Methods/generate_project_xcode.4dm": {
 		"startSelection": 0,
 		"endSelection": 0,
@@ -171,13 +171,13 @@
 		"stamp": "2019-07-02T23:15:40.975Z"
 	},
 	"Sources/Methods/TEST.4dm": {
-		"startSelection": 7,
-		"endSelection": 7,
+		"startSelection": 0,
+		"endSelection": 8,
 		"firstSelectedLine": 20,
 		"lastSelectedLine": 20,
 		"folding": [],
 		"bookmarks": [],
-		"stamp": "2021-03-22T13:07:45.932Z"
+		"stamp": "2022-01-13T06:00:51.579Z"
 	},
 	"Sources/Methods/TEST_v17.4dm": {
 		"startSelection": 0,

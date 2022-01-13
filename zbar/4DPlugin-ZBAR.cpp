@@ -153,7 +153,7 @@ void ZBAR(PA_PluginParameters params) {
             }
 #endif
             
-            void (*_PA_YieldAbsolute)(void) = PA_YieldAbsolute;
+//            void (*_PA_YieldAbsolute)(void) = PA_YieldAbsolute;
             
             using namespace zbar;
             
@@ -183,7 +183,8 @@ void ZBAR(PA_PluginParameters params) {
             zbar_image_set_data(zImage, &buf[0], w * h, NULL);
             
             /* scan the image for barcodes */
-            unsigned int n = zbar_scan_image(zScanner, zImage, _PA_YieldAbsolute, 0x2000);
+//            unsigned int n = zbar_scan_image(zScanner, zImage, _PA_YieldAbsolute, 0x2000);
+            unsigned int n = zbar_scan_image(zScanner, zImage);
             unsigned int count = 0;
             
             if(n) {
