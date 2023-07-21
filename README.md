@@ -3,10 +3,12 @@
 [![license](https://img.shields.io/github/license/miyako/4d-plugin-zbar)](LICENSE)
 ![downloads](https://img.shields.io/github/downloads/miyako/4d-plugin-zbar/total)
 
-**Note**: for v17 and earlier, move `manifest.json` to `Contents`
-
 # 4d-plugin-zbar
 Barcode scanner based on zbar 0.11
+
+* switch to homebrew `0.23.90`
+
+* **TODO**: for windows maybe use https://github.com/miyako/lib-zbar/tree/master
 
 * Supported barcode types
 
