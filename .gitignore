@@ -1,2 +1,4 @@
 zbar/test/Project/DerivedData/*
 zbar/test/userPreferences.*
+build/*
+test/Project/DerivedData/*
