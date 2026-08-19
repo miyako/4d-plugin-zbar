@@ -37,6 +37,8 @@ void PluginMain(PA_long32 selector, PA_PluginParameters params) {
 
 void ZBAR(PA_PluginParameters params) {
     
+    using namespace zbar;
+
     PA_ObjectRef returnValue = PA_CreateObject();
     
     ob_set_b(returnValue, L"success", false);
@@ -147,8 +149,6 @@ void ZBAR(PA_PluginParameters params) {
 #endif
             
 //            void (*_PA_YieldAbsolute)(void) = PA_YieldAbsolute;
-            
-            using namespace zbar;
             
             /* create a reader */
             zScanner = zbar_image_scanner_create();
