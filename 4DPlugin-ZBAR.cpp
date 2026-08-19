@@ -45,12 +45,23 @@ void ZBAR(PA_PluginParameters params) {
     PA_CollectionRef types = PA_GetCollectionParameter(params, 2);
 	PA_CollectionRef values = NULL;
 
+#if VERSIONMAC
+    CGImageRef image = NULL;
+#else
+    Gdiplus::Bitmap *image = NULL;
+#endif
+
+    zbar_image_scanner_t *zScanner = NULL;
+    zbar_image_t *zImage = NULL;
+
+    try {
+
     if(src) {
         
 #if VERSIONMAC
-        CGImageRef image = (CGImageRef)PA_CreateNativePictureForScreen(src);
+        image = (CGImageRef)PA_CreateNativePictureForScreen(src);
 #else
-        Gdiplus::Bitmap *image = (Gdiplus::Bitmap *)PA_CreateNativePictureForScreen(src);
+        image = (Gdiplus::Bitmap *)PA_CreateNativePictureForScreen(src);
 #endif
         
         if(image){
@@ -93,37 +104,19 @@ void ZBAR(PA_PluginParameters params) {
                 
                 CGContextDrawImage(ctx, rect, image);
                 
-                size_t *pixels = (size_t *)CGBitmapContextGetData (ctx);
+                // NOTE: the bitmap is 8 bits/component, 4 bytes/pixel (32bpp), so it must be
+                // walked with a 32-bit-wide pointer. The previous size_t* (8 bytes on 64-bit)
+                // aliasing, plus its alt/j bookkeeping meant to compensate for that, read past
+                // the end of bitmapData whenever w*h was odd. uint32_t is fixed-width on every
+                // platform this plugin targets, so a single straightforward loop is correct here.
+                uint32_t *pixels = (uint32_t *)CGBitmapContextGetData (ctx);
                 
-                size_t pixel, y8;
                 size_t i = 0;
-#if __LP64__
-                BOOL alt = false;
-                size_t j = 0;
-#endif
                 for(size_t y = 0; y < h; y++) {
                     for(size_t x = 0; x < w; x++) {
-#if __LP64__
-                        if(!alt)
-                        {
-                            pixel = pixels[j];
-                            y8 = (pixel >> 24) & 0xFF;
-                        }
-                        else
-                        {
-                            pixel = pixels[j];
-                            y8 = (pixel >> 56) & 0xFF;
-                            j++;
-                        }
-                        buf[i] = y8;
+                        uint32_t pixel = pixels[i];
+                        buf[i] = (uint8_t)((pixel >> 24) & 0xFF);
                         i++;
-                        alt = !alt;
-#else
-                        pixel = pixels[i];
-                        y8 = (pixel >> 24) & 0xFF;
-                        buf[i] = y8;
-                        i++;
-#endif
                     }
                 }
                 CGContextRelease(ctx);
@@ -158,9 +151,9 @@ void ZBAR(PA_PluginParameters params) {
             using namespace zbar;
             
             /* create a reader */
-            zbar_image_scanner_t *zScanner = zbar_image_scanner_create();
+            zScanner = zbar_image_scanner_create();
             
-            if(types) {
+            if(zScanner && types) {
                 
                 PA_long32 countTypes = PA_GetCollectionLength(types);
                 if(countTypes > 0) {
@@ -176,7 +169,9 @@ void ZBAR(PA_PluginParameters params) {
             }
 
             /* wrap image data */
-            zbar_image_t *zImage = zbar_image_create();
+            zImage = zbar_image_create();
+            
+            if(zScanner && zImage) {
             
             zbar_image_set_format(zImage, zbar_fourcc('Y','8','0','0'));
             zbar_image_set_size(zImage, w, h);
@@ -230,16 +225,39 @@ void ZBAR(PA_PluginParameters params) {
                 
             }
             
-            zbar_image_scanner_destroy(zScanner); zScanner = NULL;
-            zbar_image_destroy(zImage); zImage = NULL;
-
-#if VERSIONMAC
-            CGImageRelease(image); image = NULL;
-#else
-            delete image; image = NULL;
-#endif
+            } // if(zScanner && zImage)
         }
         
+    }
+
+    } // end try
+    catch(...)
+    {
+        // Make sure a scan that throws (e.g. std::bad_alloc/std::length_error from an
+        // oversized image) still falls through to PA_ReturnObject below instead of
+        // being swallowed by PluginMain's outer catch(...) with no return at all -
+        // that would leave 4D waiting forever on a command whose manifest syntax
+        // ("ZBAR(&P;&C):J") declares a return value. `returnValue` already has
+        // success=false from the top of this function, so no extra state to reset.
+    }
+
+    // Runs on every path, including the exception path above, so a thrown exception
+    // can no longer leak the native image handle or the zbar scanner/image handles.
+    if(zImage) {
+        zbar_image_destroy(zImage);
+        zImage = NULL;
+    }
+    if(zScanner) {
+        zbar_image_scanner_destroy(zScanner);
+        zScanner = NULL;
+    }
+    if(image) {
+#if VERSIONMAC
+        CGImageRelease(image);
+#else
+        delete image;
+#endif
+        image = NULL;
     }
 
 	if (values) {
