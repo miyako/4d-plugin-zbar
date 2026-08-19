@@ -23,9 +23,9 @@ permissions:
 
 env:
   # ---- edit these per-project, everything else is generic ----
-  PRODUCT_NAME: zbar
-  XCODE_PROJECT: zbar.xcodeproj
-  VCX_SOLUTION: zbar.sln
+  PRODUCT_NAME: ZBAR
+  XCODE_PROJECT: ZBAR.xcodeproj
+  VCX_SOLUTION: ZBAR.sln
   MACOS_DEPLOYMENT_TARGET: '10.13'
   # --------------------------------------------------------------
 
