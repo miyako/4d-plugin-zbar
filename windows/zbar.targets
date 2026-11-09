@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ZbarInstall>$(ProjectDir)build\windows-zbar\$(Platform)\install\$(Configuration)</ZbarInstall>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(ZbarInstall)\include;$(ProjectDir)support;$(ProjectDir)include;$(ProjectDir)4D Plugin API;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>$(ZbarInstall)\lib\zbar.lib;$(ZbarInstall)\lib\win_iconv.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Target Name="BuildWindowsZbar" BeforeTargets="PrepareForBuild">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)windows\build-zbar.ps1&quot; -Platform &quot;$(Platform)&quot; -Configuration &quot;$(Configuration)&quot; -Toolset &quot;$(PlatformToolset)&quot;" />
+  </Target>
+</Project>
