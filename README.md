@@ -86,7 +86,7 @@ Each object inside `values` has:
 | GS1 DataBar Expanded | `35` | |
 | Codabar | `38` | |
 | Code 39 | `39` | |
-| PDF417 | `57` | Per the plugin's own project notes, this symbology does not reliably decode in this build — don't depend on it. |
+| PDF417 | `57` | Not supported by the Windows scanner build; the macOS build also has a known decoding limitation. |
 | QR Code | `64` | |
 | Code 93 | `93` | |
 | Code 128 | `128` | |
@@ -168,12 +168,81 @@ End if
 ## Error handling & troubleshooting
 
 - **`success` is `False` with no `values` property at all.** This is the response for every failure/no-match case — an omitted or empty picture, an undecodable picture, and "picture decoded fine but no barcode was found" are all indistinguishable from the caller's side. Don't reference `.values` before checking `.success`.
-- **PDF417 doesn't reliably decode.** This is a known limitation of the plugin as shipped, not something to troubleshoot on your end — avoid relying on it, and don't restrict a scan to code `57` expecting consistent results.
+- **PDF417 is not supported on Windows.** Upstream zbar's PDF417 decoder is incomplete and is disabled in this build. The macOS build also has a known PDF417 limitation. Code `57` remains in the public constants for compatibility, but cannot be used to obtain PDF417 results.
 - **`confidence` is not a percentage or an accuracy score.** Treat it strictly as a relative ranking between symbols detected in the same call — a `confidence` of `40` isn't "40% sure," and isn't comparable across separate calls.
 - **A value in the `types` filter seems to be ignored.** Only elements the plugin reads as a `Real` numeric value are honored; make sure the collection was built with ordinary numeric literals (e.g. `New collection(64; 13)`), not values that end up with a different internal numeric kind.
 - **Results can differ subtly between macOS and Windows for the same picture.** The two platforms extract grayscale intensity from a different color channel internally. This has no practical effect on plain black-and-white barcodes, but is worth knowing if you see a platform-specific miss on a heavily tinted or anti-aliased image.
-- **Large or high-resolution pictures can make a call noticeably slower, particularly on Windows.** The scan runs synchronously on the calling thread; if you routinely scan very large pictures, consider downsizing them (e.g. with `Picture` commands or an image-conversion command appropriate to your 4D version) before calling `ZBAR`.
-- **Windows crashes during scanning in older builds.** The bundled Windows zbar 0.11 library requires a yield callback and interval in addition to the scanner and image arguments. Builds that used the newer two-argument declaration could call an invalid callback address and crash with an execute access violation (`0xC0000005`). The current source uses the matching 0.11 header and passes `PA_YieldAbsolute` with interval `0x2000`; rebuild and replace the Windows plugin to apply this fix. The macOS library retains its two-argument API.
+- **Large or high-resolution pictures can make a call noticeably slower, particularly on Windows.** The scan runs synchronously on the calling thread. Windows now uses standard upstream zbar without the historical custom scan yield callback. Windows schedules other OS threads, but the calling 4D thread still blocks until decoding finishes; UI responsiveness is not guaranteed by the OS or a newer 4D version. The existing per-row `PA_YieldAbsolute` calls during Windows picture conversion remain. Downsize very large pictures before scanning when appropriate.
+- **Windows crashes during scanning in older builds.** The former custom Windows zbar 0.11 library required a yield callback and interval. Builds that used a two-argument declaration with that library could call an invalid callback address and crash with an execute access violation (`0xC0000005`). Version 2.2.7 restored the matching custom ABI. The current source instead builds standard zbar 0.23.95 and uses its matching two-argument header and library together. Rebuild and replace the Windows plugin; removing callback arguments while retaining the old binary library is unsafe. The macOS library is unchanged.
+
+---
+
+## Building on Windows
+
+Install Visual Studio 2022 (or Build Tools) with **Desktop development with C++**,
+the v143 MSVC tools, Windows 10/11 SDK, and **C++ CMake tools for Windows**
+(CMake 3.24 or newer on `PATH`). PowerShell 5.1 or newer is required. Open a
+Developer PowerShell/Command Prompt in this repository, then run:
+
+```powershell
+msbuild ZBAR.sln /p:Configuration=Release /p:Platform=x64 /p:WindowsTargetPlatformVersion=10.0 /m
+powershell -NoProfile -File windows/build-zbar.ps1 -Configuration Release -Test
+```
+
+MSBuild automatically downloads, verifies and builds the dependencies before
+compiling the plugin. No separately installed zbar, old `.lib`, or CI-only setup
+is needed. The first build needs internet access. Subsequent builds reuse
+`build/windows-zbar/x64`; remove that specific build directory when changing the
+compiler installation or dependency pins. `Debug` uses separate installed
+libraries and the debug CRT. The dependency integration also accepts `Win32` for
+legacy project configurations, but supported releases and CI validate x64 only.
+Output remains `test/Plugins/ZBAR.bundle/Contents/Windows64/ZBAR.4DX`.
+
+`windows/zbar/CMakeLists.txt` pins the [zbar 0.23.95 source archive](https://github.com/mchehab/zbar/tree/0.23.95)
+and [win-iconv v0.0.11](https://github.com/win-iconv/win-iconv/tree/v0.0.11)
+by version and SHA-256. Upstream currently provides Meson/MinGW build wiring,
+not a native MSVC project; this small CMake integration compiles unmodified
+upstream scanner/image sources with MSVC C11. Both static libraries and the
+plugin use `/MT` (`/MTd` in Debug). The plugin includes the header installed from
+that exact source build and links explicit paths to the matching libraries;
+the macOS `include/zbar.h` and `a/libzbar.a` are untouched.
+
+Enabled decoders are EAN/UPC/ISBN and add-ons, DataBar/Expanded, Code 128,
+Code 93, Code 39, Codabar, Interleaved 2 of 5, and QR. PDF417 remains unsupported;
+the additional upstream SQ Code decoder is intentionally disabled. QR text
+conversion uses statically compiled win-iconv and Windows code-page APIs,
+including Shift-JIS; win-iconv's optional DLL delegation is disabled. It is not
+an encoding-validation library, and malformed text or uncommon code pages can
+differ from GNU iconv. No ImageMagick, JPEG, camera, processor/UI bindings,
+Python/Qt/GTK, or other optional library dependencies are built; 4D/GDI+ supplies
+the image decoding as before.
+
+The **Windows scanner validation** workflow runs non-release x64 Release and
+Debug builds and a native executable linked to the same libraries. It checks
+the two-argument declaration and linked version, representative `test/Resources`
+decodes, type inclusion/exclusion, repeated calls, blank images, the PDF417
+limitation, Japanese text conversion, and an 8192-by-8192 QR image. It does not
+run a licensed 4D host, so the existing `TEST.4dm` remains the host-level manual
+check for the command's unchanged `success`/`values` object contract.
+
+### Dependency licensing
+
+The plugin source remains MIT licensed. zbar is LGPL-2.1-or-later and win-iconv
+is public domain; dependency notices are installed under
+`build/windows-zbar/x64/install/<Configuration>/licenses` and included in release
+bundles under `Contents/Resources/licenses`. When redistributing static builds,
+retain these notices and provide the corresponding source and materials needed
+to rebuild/relink with a modified zbar, as required by the LGPL. The pinned
+upstream sources and this repository's plugin sources/build scripts are the
+rebuild inputs; the release workflow also supplies a Windows relink archive.
+That archive includes the plugin source, plugin object files, dependency
+libraries/headers/notices, and both dependency source trees. To rebuild offline,
+extract it, change the zbar sources as desired, and configure the dependency
+build with CMake's `FETCHCONTENT_SOURCE_DIR_ZBAR_SOURCE` and
+`FETCHCONTENT_SOURCE_DIR_WIN_ICONV_SOURCE` options pointing to those source trees
+(absolute paths). Use the build directory and install paths described above,
+then rebuild the plugin with MSBuild. Do not mix headers/libraries from the
+former callback-enabled 0.11 distribution into this build.
 
 ---
 

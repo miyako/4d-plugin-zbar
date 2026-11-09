@@ -176,11 +176,7 @@ void ZBAR(PA_PluginParameters params) {
             zbar_image_set_data(zImage, &buf[0], w * h, NULL);
             
             /* scan the image for barcodes */
-#if VERSIONWIN
-            unsigned int n = zbar_scan_image(zScanner, zImage, PA_YieldAbsolute, 0x2000);
-#else
             unsigned int n = zbar_scan_image(zScanner, zImage);
-#endif
             unsigned int count = 0;
             
             if(n) {

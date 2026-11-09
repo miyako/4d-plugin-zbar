@@ -77,6 +77,12 @@ jobs:
         run: |
           msbuild "%PRODUCT_NAME%.sln" /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0 /m
 
+      - name: validate Windows scanner
+        shell: pwsh
+        run: |
+          ctest --test-dir build/windows-zbar/x64 -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw "Scanner regression failed" }
+
       - name: normalize windows output to canonical case
         shell: pwsh
         run: |
@@ -112,7 +118,29 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-binaries
-          path: ${{ env.BASE_DIR }}/Plugins/${{ env.PRODUCT_NAME }}.bundle/Contents/Windows64/${{ env.PRODUCT_NAME }}.4DX
+          path: |
+            ${{ env.BASE_DIR }}/Plugins/${{ env.PRODUCT_NAME }}.bundle/Contents/Windows64/${{ env.PRODUCT_NAME }}.4DX
+            build/windows-zbar/x64/install/Release/licenses
+          if-no-files-found: error
+
+      - name: collect Windows source and relink materials
+        shell: pwsh
+        run: |
+          $stage = "build/windows-relink"
+          New-Item -ItemType Directory -Force "$stage/plugin-source" | Out-Null
+          git archive --format=zip --output=build/plugin-source.zip HEAD
+          if ($LASTEXITCODE -ne 0) { throw "Source archive failed" }
+          Expand-Archive build/plugin-source.zip "$stage/plugin-source"
+          Copy-Item -Recurse build/windows-zbar/x64/_deps/zbar_source-src "$stage/zbar-source"
+          Copy-Item -Recurse build/windows-zbar/x64/_deps/win_iconv_source-src "$stage/win-iconv-source"
+          Copy-Item -Recurse Objs/Release "$stage/plugin-objects"
+          Copy-Item -Recurse build/windows-zbar/x64/install/Release "$stage/dependencies"
+          Compress-Archive "$stage/*" "windows-relink.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-relink
+          path: windows-relink.zip
           if-no-files-found: error
 
   build-macos:
@@ -129,6 +157,11 @@ jobs:
         with:
           name: windows-binaries
           path: winbuild
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-relink
+          path: relink
 
       - name: import Developer ID certificate
         env:
@@ -232,6 +265,8 @@ jobs:
 
           echo "Copying $SRC -> $BUNDLE/Contents/Windows64/${PRODUCT}.4DX"
           cp "$SRC" "$BUNDLE/Contents/Windows64/${PRODUCT}.4DX"
+          mkdir -p "$BUNDLE/Contents/Resources/licenses"
+          cp -R winbuild/build/windows-zbar/x64/install/Release/licenses/. "$BUNDLE/Contents/Resources/licenses/"
 
           echo "BUNDLE_PATH=$BUNDLE" >> "$GITHUB_ENV"
           ls -R "$BUNDLE/Contents"
@@ -281,3 +316,4 @@ jobs:
           files: |
             ${{ env.ZIP_PATH }}
             ${{ env.DMG_PATH }}
+            relink/windows-relink.zip

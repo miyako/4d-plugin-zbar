@@ -1,0 +1,35 @@
+name: Windows scanner validation
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        configuration: [Release, Debug]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build and test pinned scanner
+        shell: pwsh
+        run: ./windows/build-zbar.ps1 -Configuration ${{ matrix.configuration }} -Test
+      - name: Build plugin with the same header and static libraries
+        shell: pwsh
+        run: |
+          msbuild ZBAR.sln /p:Configuration=${{ matrix.configuration }} /p:Platform=x64 /p:WindowsTargetPlatformVersion=10.0 /m
+          if ($LASTEXITCODE -ne 0) { throw "Plugin build failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.configuration }}
+          path: |
+            test/Plugins/ZBAR.bundle/Contents/Windows64/ZBAR.4DX
+            build/windows-zbar/x64/install/${{ matrix.configuration }}/licenses
+          if-no-files-found: error
