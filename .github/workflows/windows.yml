@@ -49,10 +49,20 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Baseline build failed" }
           & build/legacy-test/Release/legacy-scanner.exe test/Resources tests/windows/resources
           if ($LASTEXITCODE -ne 0) { throw "Baseline decode failed" }
+      - name: Verify release relink archive (no release publication)
+        if: matrix.configuration == 'Release'
+        shell: pwsh
+        run: ./windows/package-relink.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: windows-${{ matrix.configuration }}
           path: |
             test/Plugins/ZBAR.bundle/Contents/Windows64/ZBAR.4DX
             build/windows-zbar/x64/install/${{ matrix.configuration }}/licenses
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: matrix.configuration == 'Release'
+        with:
+          name: windows-relink
+          path: build/windows-relink.zip
           if-no-files-found: error

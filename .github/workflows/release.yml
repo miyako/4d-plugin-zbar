@@ -125,22 +125,12 @@ jobs:
 
       - name: collect Windows source and relink materials
         shell: pwsh
-        run: |
-          $stage = "build/windows-relink"
-          New-Item -ItemType Directory -Force "$stage/plugin-source" | Out-Null
-          git archive --format=zip --output=build/plugin-source.zip HEAD
-          if ($LASTEXITCODE -ne 0) { throw "Source archive failed" }
-          Expand-Archive build/plugin-source.zip "$stage/plugin-source"
-          Copy-Item -Recurse build/windows-zbar/x64/_deps/zbar_source-src "$stage/zbar-source"
-          Copy-Item -Recurse build/windows-zbar/x64/_deps/win_iconv_source-src "$stage/win-iconv-source"
-          Copy-Item -Recurse Objs/Release "$stage/plugin-objects"
-          Copy-Item -Recurse build/windows-zbar/x64/install/Release "$stage/dependencies"
-          Compress-Archive "$stage/*" "windows-relink.zip"
+        run: ./windows/package-relink.ps1
 
       - uses: actions/upload-artifact@v4
         with:
           name: windows-relink
-          path: windows-relink.zip
+          path: build/windows-relink.zip
           if-no-files-found: error
 
   build-macos:

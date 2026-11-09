@@ -58,18 +58,27 @@ struct Result {
     }
 };
 
-static std::vector<Result> scan(const Picture& picture, zbar_symbol_type_t only = ZBAR_NONE)
+static std::vector<Result> scan(const Picture& picture,
+    const std::vector<zbar_symbol_type_t>& filters)
 {
     std::unique_ptr<zbar_image_scanner_t, decltype(&zbar_image_scanner_destroy)>
         scanner(zbar_image_scanner_create(), zbar_image_scanner_destroy);
     std::unique_ptr<zbar_image_t, decltype(&zbar_image_destroy)>
         image(zbar_image_create(), zbar_image_destroy);
     require(scanner && image, "Scanner allocation failed");
-    if (only != ZBAR_NONE) {
+    if (!filters.empty()) {
         require(!zbar_image_scanner_set_config(scanner.get(), ZBAR_NONE, ZBAR_CFG_ENABLE, 0),
             "Cannot disable symbologies");
-        require(!zbar_image_scanner_set_config(scanner.get(), only, ZBAR_CFG_ENABLE, 1),
-            "Cannot enable requested symbology");
+        for (auto type : filters) {
+            const int status = zbar_image_scanner_set_config(scanner.get(), type,
+                ZBAR_CFG_ENABLE, 1);
+#ifndef LEGACY_ZBAR
+            if (type == ZBAR_PDF417)
+                require(status != 0, "Incomplete PDF417 decoder must be disabled at build time");
+            else
+#endif
+                require(status == 0, "Cannot enable requested symbology");
+        }
     }
     zbar_image_set_format(image.get(), zbar_fourcc('Y', '8', '0', '0'));
     zbar_image_set_size(image.get(), picture.width, picture.height);
@@ -94,6 +103,12 @@ static std::vector<Result> scan(const Picture& picture, zbar_symbol_type_t only 
     }
     require(results.size() == static_cast<size_t>(count), "Result count mismatch");
     return results;
+}
+
+static std::vector<Result> scan(const Picture& picture, zbar_symbol_type_t only = ZBAR_NONE)
+{
+    return scan(picture, only == ZBAR_NONE ? std::vector<zbar_symbol_type_t>{} :
+        std::vector<zbar_symbol_type_t>{only});
 }
 
 #ifndef LEGACY_ZBAR
@@ -145,18 +160,24 @@ int wmain(int argc, wchar_t** argv)
             std::cout << "default " << type << ": "
                 << zbar_decoder_get_configs(decoder.get(), type) << '\n';
         const std::wstring root = std::wstring(argv[1]) + L"/";
-        struct Fixture { const wchar_t* file; zbar_symbol_type_t type; };
+        struct Fixture { const wchar_t* file; zbar_symbol_type_t type; const char* data; };
         const Fixture fixtures[] = {
-            {L"qrcode.png", ZBAR_QRCODE}, {L"code128.png", ZBAR_CODE128},
-            {L"code93.png", ZBAR_CODE93}, {L"ean8.png", ZBAR_EAN8},
-            {L"databar.png", ZBAR_DATABAR}, {L"codabar.png", ZBAR_CODABAR},
-            {L"i25.png", ZBAR_I25}, {L"upca.png", ZBAR_UPCA},
-            {L"upce.png", ZBAR_UPCE}, {L"isbn10.png", ZBAR_ISBN10}
+            {L"qrcode.png", ZBAR_QRCODE, "abcd"},
+            {L"code128.png", ZBAR_CODE128, "124222"},
+            {L"code93.png", ZBAR_CODE93, "abcd"},
+            {L"ean8.png", ZBAR_EAN8, "01242225"},
+            {L"databar.png", ZBAR_DATABAR, "0100075678164125"},
+            {L"codabar.png", ZBAR_CODABAR, "A31117013206375B"},
+            {L"i25.png", ZBAR_I25, "124222"},
+            {L"upca.png", ZBAR_EAN13, "0000000012348"},
+            {L"upce.png", ZBAR_UPCE, "00012344"},
+            {L"isbn10.png", ZBAR_EAN13, "9780000124227"}
         };
         for (const auto& fixture : fixtures) {
             const auto picture = load(root + fixture.file);
             const auto results = scan(picture, fixture.type);
-            require(results.size() == 1 && results[0].type == fixture.type,
+            require(results.size() == 1 && results[0].type == fixture.type &&
+                results[0].data == fixture.data,
                 "Fixture did not decode as the requested type");
             std::cout << "type " << fixture.type << ": " << results[0].data << '\n';
             for (int repeat = 0; repeat < 3; ++repeat)
@@ -183,6 +204,19 @@ int wmain(int argc, wchar_t** argv)
 
         const auto qr = load(root + L"qrcode.png");
         const auto expected = scan(qr, ZBAR_QRCODE);
+        require(scan(qr, ZBAR_PDF417).empty(), "PDF417-only filter enabled QR implicitly");
+        require(scan(qr, std::vector<zbar_symbol_type_t>{ZBAR_PDF417, ZBAR_QRCODE}) == expected,
+            "Mixed unsupported filter lost QR");
+        const auto upca = load(root + L"upca.png");
+        const auto isbn = load(root + L"isbn10.png");
+        require(scan(upca, ZBAR_UPCA).empty(), "UPC-A-only filter behavior changed");
+        require(scan(isbn, ZBAR_ISBN10).empty(), "ISBN-10-only filter behavior changed");
+        const auto upcaResult = scan(upca, std::vector<zbar_symbol_type_t>{ZBAR_EAN13, ZBAR_UPCA});
+        const auto isbnResult = scan(isbn, std::vector<zbar_symbol_type_t>{ZBAR_EAN13, ZBAR_ISBN10});
+        require(upcaResult.size() == 1 && upcaResult[0].type == ZBAR_UPCA &&
+            upcaResult[0].data == "000000012348", "UPC-A derived decoding changed");
+        require(isbnResult.size() == 1 && isbnResult[0].type == ZBAR_ISBN10 &&
+            isbnResult[0].data == "0000124222", "ISBN-10 derived decoding changed");
         const unsigned side = 8192, scale = 4;
         require(qr.width * scale < side && qr.height * scale < side, "QR fixture too large");
         Picture large{side, side, std::vector<unsigned char>(static_cast<size_t>(side) * side, 255)};

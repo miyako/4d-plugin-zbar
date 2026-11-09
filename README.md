@@ -93,6 +93,17 @@ Each object inside `values` has:
 
 These codes come from zbar's own public header. Only elements in the `types` collection that 4D reads as a numeric ("Real") value are honored — any other element kind is silently skipped, so build the collection with plain numeric literals.
 
+On Windows, a non-empty filter disables all decoders first, then enables only
+the supported requested types. Unsupported types do not re-enable defaults:
+`New collection(57)` produces `success:false` with no `values`, while
+`New collection(57; 64)` can still return QR results. No new error property is
+introduced for unsupported types.
+UPC-A and ISBN are derived from EAN-13: to request those output forms, include
+the EAN-13 base decoder as well (for example `New collection(13; 12)` for
+UPC-A or `New collection(13; 10)` for ISBN-10). Enabling the derived form alone
+does not enable its EAN-13 base decoder; this behavior is unchanged from the
+former Windows library.
+
 ### Example
 
 From the plugin's own test method (`TEST.4dm`) — scans every picture file found in the current resources folder:
@@ -197,6 +208,8 @@ compiler installation or dependency pins. `Debug` uses separate installed
 libraries and the debug CRT. The dependency integration also accepts `Win32` for
 legacy project configurations, but supported releases and CI validate x64 only.
 Output remains `test/Plugins/ZBAR.bundle/Contents/Windows64/ZBAR.4DX`.
+Windows CI and release builds use the `windows-2022` runner explicitly so the
+native CMake generator and v143 toolset match the documented local setup.
 
 `windows/zbar/CMakeLists.txt` pins the [zbar 0.23.95 source archive](https://github.com/mchehab/zbar/tree/0.23.95)
 and [win-iconv v0.0.11](https://github.com/win-iconv/win-iconv/tree/v0.0.11)
@@ -224,6 +237,14 @@ decodes, type inclusion/exclusion, repeated calls, blank images, the PDF417
 limitation, Japanese text conversion, and an 8192-by-8192 QR image. It does not
 run a licensed 4D host, so the existing `TEST.4dm` remains the host-level manual
 check for the command's unchanged `success`/`values` object contract.
+Non-ASCII QR fixtures include UTF-8 Japanese/accented text and Shift-JIS
+Japanese text, with exact expected UTF-8 output bytes. They can be regenerated
+on macOS using `swift tests/windows/generate-qr.swift` (Core Image). The Release
+job also builds a separate, checksum-verified legacy scanner test from commit
+`e3b59753123774b7c14ceb32de4f77b78e2bcc78`, supplying a valid no-op callback
+only to that historical test library. It records decoder defaults and runs
+the same fixtures for migration comparison; the old library is never linked
+into the modern plugin or included in release artifacts.
 
 ### Dependency licensing
 
