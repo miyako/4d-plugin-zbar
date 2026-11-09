@@ -5,7 +5,9 @@ using std::min;
 using std::max;
 #include <gdiplus.h>
 #include <zbar.h>
+#ifndef LEGACY_ZBAR
 #include <iconv.h>
+#endif
 #include <chrono>
 #include <iostream>
 #include <memory>
@@ -15,9 +17,11 @@ using std::max;
 #include <vector>
 
 using namespace zbar;
+#ifndef LEGACY_ZBAR
 static_assert(std::is_same<decltype(&zbar_scan_image),
     int (*)(zbar_image_scanner_t*, zbar_image_t*)>::value,
     "The scanner must use the standard two-argument ABI");
+#endif
 
 struct Picture {
     unsigned width, height;
@@ -71,7 +75,11 @@ static std::vector<Result> scan(const Picture& picture, zbar_symbol_type_t only 
     zbar_image_set_size(image.get(), picture.width, picture.height);
     zbar_image_set_data(image.get(), picture.pixels.data(),
         static_cast<unsigned long>(picture.pixels.size()), nullptr);
+#ifdef LEGACY_ZBAR
+    const int count = zbar_scan_image(scanner.get(), image.get(), []() {}, 0x2000);
+#else
     const int count = zbar_scan_image(scanner.get(), image.get());
+#endif
     require(count >= 0, "Scanner returned an error");
     std::vector<Result> results;
     for (const auto* symbol = zbar_image_first_symbol(image.get()); symbol;
@@ -88,6 +96,7 @@ static std::vector<Result> scan(const Picture& picture, zbar_symbol_type_t only 
     return results;
 }
 
+#ifndef LEGACY_ZBAR
 static void checkEncoding()
 {
     iconv_t converter = iconv_open("UTF-8", "SJIS");
@@ -103,6 +112,7 @@ static void checkEncoding()
         std::string(output) == "\xe6\x97\xa5\xe6\x9c\xac",
         "QR text conversion must preserve Japanese characters");
 }
+#endif
 
 int wmain(int argc, wchar_t** argv)
 {
@@ -114,11 +124,26 @@ int wmain(int argc, wchar_t** argv)
     }
     int exitCode = 0;
     try {
-        require(argc == 2, "Usage: scanner-test <test/Resources>");
+        require(argc == 3, "Usage: scanner-test <test/Resources> <tests/windows/resources>");
         unsigned major = 0, minor = 0, patch = 0;
+#ifdef LEGACY_ZBAR
+        zbar_version(&major, &minor);
+        require(major == 0 && minor == 11, "Wrong linked legacy zbar version");
+#else
         zbar_version(&major, &minor, &patch);
         require(major == 0 && minor == 23 && patch == 95, "Wrong linked zbar version");
         checkEncoding();
+#endif
+        std::unique_ptr<zbar_decoder_t, decltype(&zbar_decoder_destroy)>
+            decoder(zbar_decoder_create(), zbar_decoder_destroy);
+        require(decoder != nullptr, "Cannot create decoder");
+        const zbar_symbol_type_t types[] = {ZBAR_EAN2, ZBAR_EAN5, ZBAR_EAN8,
+            ZBAR_UPCE, ZBAR_ISBN10, ZBAR_UPCA, ZBAR_EAN13, ZBAR_ISBN13,
+            ZBAR_I25, ZBAR_DATABAR, ZBAR_DATABAR_EXP, ZBAR_CODABAR,
+            ZBAR_CODE39, ZBAR_PDF417, ZBAR_QRCODE, ZBAR_CODE93, ZBAR_CODE128};
+        for (auto type : types)
+            std::cout << "default " << type << ": "
+                << zbar_decoder_get_configs(decoder.get(), type) << '\n';
         const std::wstring root = std::wstring(argv[1]) + L"/";
         struct Fixture { const wchar_t* file; zbar_symbol_type_t type; };
         const Fixture fixtures[] = {
@@ -133,8 +158,7 @@ int wmain(int argc, wchar_t** argv)
             const auto results = scan(picture, fixture.type);
             require(results.size() == 1 && results[0].type == fixture.type,
                 "Fixture did not decode as the requested type");
-            std::wcout << fixture.file << L": ";
-            std::cout << results[0].data << '\n';
+            std::cout << "type " << fixture.type << ": " << results[0].data << '\n';
             for (int repeat = 0; repeat < 3; ++repeat)
                 require(scan(picture, fixture.type) == results, "Repeat scan changed payload");
             require(!scan(picture).empty(), "Default symbologies failed to decode fixture");
@@ -145,6 +169,17 @@ int wmain(int argc, wchar_t** argv)
             "Blank image produced a symbol");
         require(scan(load(root + L"pdf417.png")).empty(), "Unexpected PDF417 support");
         require(scan(load(root + L"pdf417.jpg")).empty(), "Unexpected PDF417 support");
+
+        const std::wstring extra = std::wstring(argv[2]) + L"/";
+        const std::pair<const wchar_t*, const char*> textFixtures[] = {
+            {L"qr-utf8.png", "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e caf\xc3\xa9"},
+            {L"qr-sjis.png", "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"}
+        };
+        for (const auto& fixture : textFixtures) {
+            const auto results = scan(load(extra + fixture.first), ZBAR_QRCODE);
+            require(results.size() == 1 && results[0].data == fixture.second,
+                "Non-ASCII QR payload did not decode to expected UTF-8 bytes");
+        }
 
         const auto qr = load(root + L"qrcode.png");
         const auto expected = scan(qr, ZBAR_QRCODE);

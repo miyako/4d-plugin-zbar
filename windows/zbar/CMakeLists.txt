@@ -65,6 +65,7 @@ if(BUILD_TESTING)
     target_link_libraries(scanner-test PRIVATE zbar gdiplus)
     target_compile_features(scanner-test PRIVATE cxx_std_11)
     add_test(NAME scanner-integration COMMAND scanner-test
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../test/Resources")
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../test/Resources"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/windows/resources")
     set_tests_properties(scanner-integration PROPERTIES TIMEOUT 180)
 endif()
