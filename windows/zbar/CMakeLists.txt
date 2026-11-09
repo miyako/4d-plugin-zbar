@@ -48,7 +48,7 @@ add_library(zbar STATIC
     "${zbar}/qrcode/util.c")
 target_include_directories(zbar
     PUBLIC "${zbar_source_SOURCE_DIR}/include"
-    PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${zbar_source_SOURCE_DIR}")
+    PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${zbar_source_SOURCE_DIR}" "${zbar}")
 target_compile_definitions(zbar PRIVATE _CRT_SECURE_NO_WARNINGS)
 target_link_libraries(zbar PUBLIC win_iconv winmm)
 
