@@ -23,5 +23,5 @@ Invoke-Checked cmake @("-S", "$PSScriptRoot/zbar", "-B", $build,
 Invoke-Checked cmake @("--build", $build, "--config", $Configuration, "--parallel")
 Invoke-Checked cmake @("--install", $build, "--config", $Configuration, "--prefix", $install)
 if ($Test) {
-    Invoke-Checked ctest @("--test-dir", $build, "-C", $Configuration, "--output-on-failure")
+    Invoke-Checked ctest @("--test-dir", $build, "-C", $Configuration, "--verbose", "--output-on-failure")
 }

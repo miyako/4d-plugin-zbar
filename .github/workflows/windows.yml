@@ -47,8 +47,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Baseline configure failed" }
           cmake --build build/legacy-test --config Release --parallel
           if ($LASTEXITCODE -ne 0) { throw "Baseline build failed" }
-          & build/legacy-test/Release/legacy-scanner.exe test/Resources tests/windows/resources
+          & build/legacy-test/Release/legacy-scanner.exe test/Resources tests/windows/resources | Tee-Object build/legacy-results.txt
           if ($LASTEXITCODE -ne 0) { throw "Baseline decode failed" }
+          & build/windows-zbar/x64/Release/scanner-test.exe test/Resources tests/windows/resources | Tee-Object build/modern-results.txt
+          if ($LASTEXITCODE -ne 0) { throw "Modern comparison decode failed" }
+          $old = @(Get-Content build/legacy-results.txt | Where-Object { $_ -match '^default ' -and $_ -notmatch '^default 57:' })
+          $new = @(Get-Content build/modern-results.txt | Where-Object { $_ -match '^default ' -and $_ -notmatch '^default 57:' })
+          if (Compare-Object $old $new) { throw "Supported decoder defaults changed" }
       - name: Verify release relink archive (no release publication)
         if: matrix.configuration == 'Release'
         shell: pwsh

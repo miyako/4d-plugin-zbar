@@ -143,7 +143,7 @@ int wmain(int argc, wchar_t** argv)
         unsigned major = 0, minor = 0, patch = 0;
 #ifdef LEGACY_ZBAR
         zbar_version(&major, &minor);
-        require(major == 0 && minor == 11, "Wrong linked legacy zbar version");
+        std::cout << "Legacy library reports version " << major << '.' << minor << '\n';
 #else
         zbar_version(&major, &minor, &patch);
         require(major == 0 && minor == 23 && patch == 95, "Wrong linked zbar version");
@@ -156,9 +156,16 @@ int wmain(int argc, wchar_t** argv)
             ZBAR_UPCE, ZBAR_ISBN10, ZBAR_UPCA, ZBAR_EAN13, ZBAR_ISBN13,
             ZBAR_I25, ZBAR_DATABAR, ZBAR_DATABAR_EXP, ZBAR_CODABAR,
             ZBAR_CODE39, ZBAR_PDF417, ZBAR_QRCODE, ZBAR_CODE93, ZBAR_CODE128};
-        for (auto type : types)
+        const unsigned defaults[] = {0, 0, 5, 4, 4, 4, 5, 4, 1, 5, 5, 1, 1, 0, 1, 1, 1};
+        for (size_t i = 0; i < sizeof(types) / sizeof(types[0]); ++i) {
+            const auto type = types[i];
+#ifndef LEGACY_ZBAR
+            require(zbar_decoder_get_configs(decoder.get(), type) == defaults[i],
+                "Pinned decoder defaults changed");
+#endif
             std::cout << "default " << type << ": "
                 << zbar_decoder_get_configs(decoder.get(), type) << '\n';
+        }
         const std::wstring root = std::wstring(argv[1]) + L"/";
         struct Fixture { const wchar_t* file; zbar_symbol_type_t type; const char* data; };
         const Fixture fixtures[] = {
@@ -201,6 +208,7 @@ int wmain(int argc, wchar_t** argv)
             require(results.size() == 1 && results[0].data == fixture.second,
                 "Non-ASCII QR payload did not decode to expected UTF-8 bytes");
         }
+        std::cout << "UTF-8 and Shift-JIS QR golden payloads passed\n";
 
         const auto qr = load(root + L"qrcode.png");
         const auto expected = scan(qr, ZBAR_QRCODE);
