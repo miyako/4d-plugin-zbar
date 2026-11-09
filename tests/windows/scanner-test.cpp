@@ -159,10 +159,13 @@ int wmain(int argc, wchar_t** argv)
         const unsigned defaults[] = {0, 0, 5, 4, 4, 4, 5, 4, 1, 5, 5, 1, 1, 0, 1, 1, 1};
         for (size_t i = 0; i < sizeof(types) / sizeof(types[0]); ++i) {
             const auto type = types[i];
-#ifndef LEGACY_ZBAR
-            require(zbar_decoder_get_configs(decoder.get(), type) == defaults[i],
-                "Pinned decoder defaults changed");
+#ifdef LEGACY_ZBAR
+            const unsigned expected = type == ZBAR_PDF417 ? 1 : defaults[i];
+#else
+            const unsigned expected = defaults[i];
 #endif
+            require(zbar_decoder_get_configs(decoder.get(), type) == expected,
+                "Pinned decoder defaults changed");
             std::cout << "default " << type << ": "
                 << zbar_decoder_get_configs(decoder.get(), type) << '\n';
         }

@@ -246,6 +246,15 @@ only to that historical test library. It records decoder defaults and runs
 the same fixtures for migration comparison; the old library is never linked
 into the modern plugin or included in release artifacts.
 
+The supported default enable/config flags match that historical library:
+EAN-8, EAN-13, I25, DataBar/Expanded, Codabar, Code 39/93/128, and QR are enabled.
+EAN-2/5, UPC-A/E, and ISBN output forms are opt-in; without a filter, UPC/ISBN
+pictures are reported through the enabled EAN-13 decoder. The intentional
+default difference is PDF417: the former library enabled its incomplete
+decoder, whereas the modern build omits it. Both PDF417 resource samples
+remain no-match, and supported-only and mixed supported/unsupported filters
+retain their behavior.
+
 ### Dependency licensing
 
 The plugin source remains MIT licensed. zbar is LGPL-2.1-or-later and win-iconv

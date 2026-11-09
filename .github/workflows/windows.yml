@@ -19,14 +19,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: microsoft/setup-msbuild@v2
-      - name: Build and test pinned scanner
-        shell: pwsh
-        run: ./windows/build-zbar.ps1 -Configuration ${{ matrix.configuration }} -Test
       - name: Build plugin with the same header and static libraries
         shell: pwsh
         run: |
           msbuild ZBAR.sln /p:Configuration=${{ matrix.configuration }} /p:Platform=x64 /p:WindowsTargetPlatformVersion=10.0 /m
           if ($LASTEXITCODE -ne 0) { throw "Plugin build failed" }
+      - name: Test the scanner built automatically by MSBuild
+        shell: pwsh
+        run: ./windows/build-zbar.ps1 -Configuration ${{ matrix.configuration }} -Test
       - name: Compare former library defaults and fixtures (Release only)
         if: matrix.configuration == 'Release'
         shell: pwsh
