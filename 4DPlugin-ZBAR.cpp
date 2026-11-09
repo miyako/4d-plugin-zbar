@@ -148,8 +148,6 @@ void ZBAR(PA_PluginParameters params) {
             }
 #endif
             
-//            void (*_PA_YieldAbsolute)(void) = PA_YieldAbsolute;
-            
             /* create a reader */
             zScanner = zbar_image_scanner_create();
             
@@ -178,8 +176,11 @@ void ZBAR(PA_PluginParameters params) {
             zbar_image_set_data(zImage, &buf[0], w * h, NULL);
             
             /* scan the image for barcodes */
-//            unsigned int n = zbar_scan_image(zScanner, zImage, _PA_YieldAbsolute, 0x2000);
+#if VERSIONWIN
+            unsigned int n = zbar_scan_image(zScanner, zImage, PA_YieldAbsolute, 0x2000);
+#else
             unsigned int n = zbar_scan_image(zScanner, zImage);
+#endif
             unsigned int count = 0;
             
             if(n) {
@@ -266,4 +267,3 @@ void ZBAR(PA_PluginParameters params) {
     
     PA_ReturnObject(params, returnValue);
 }
-

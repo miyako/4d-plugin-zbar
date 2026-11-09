@@ -15,7 +15,12 @@
 
 #include "4DPlugin-JSON.h"
 
+#if VERSIONWIN
+// The bundled Windows library uses the callback-enabled 0.11 ABI.
+#include "include/0.11/zbar.h"
+#else
 #include "zbar.h"
+#endif
 
 #if VERSIONWIN
 #ifndef max
