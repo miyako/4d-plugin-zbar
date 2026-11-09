@@ -173,6 +173,7 @@ End if
 - **A value in the `types` filter seems to be ignored.** Only elements the plugin reads as a `Real` numeric value are honored; make sure the collection was built with ordinary numeric literals (e.g. `New collection(64; 13)`), not values that end up with a different internal numeric kind.
 - **Results can differ subtly between macOS and Windows for the same picture.** The two platforms extract grayscale intensity from a different color channel internally. This has no practical effect on plain black-and-white barcodes, but is worth knowing if you see a platform-specific miss on a heavily tinted or anti-aliased image.
 - **Large or high-resolution pictures can make a call noticeably slower, particularly on Windows.** The scan runs synchronously on the calling thread; if you routinely scan very large pictures, consider downsizing them (e.g. with `Picture` commands or an image-conversion command appropriate to your 4D version) before calling `ZBAR`.
+- **Windows crashes during scanning in older builds.** The bundled Windows zbar 0.11 library requires a yield callback and interval in addition to the scanner and image arguments. Builds that used the newer two-argument declaration could call an invalid callback address and crash with an execute access violation (`0xC0000005`). The current source uses the matching 0.11 header and passes `PA_YieldAbsolute` with interval `0x2000`; rebuild and replace the Windows plugin to apply this fix. The macOS library retains its two-argument API.
 
 ---
 
