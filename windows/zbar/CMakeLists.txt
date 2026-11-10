@@ -62,7 +62,7 @@ install(FILES "${win_iconv_source_SOURCE_DIR}/readme.txt"
 include(CTest)
 if(BUILD_TESTING)
     add_executable(scanner-test ../../tests/windows/scanner-test.cpp)
-    target_link_libraries(scanner-test PRIVATE zbar gdiplus)
+    target_link_libraries(scanner-test PRIVATE zbar gdiplus windowscodecs ole32)
     target_compile_features(scanner-test PRIVATE cxx_std_11)
     add_test(NAME scanner-integration COMMAND scanner-test
         "${CMAKE_CURRENT_SOURCE_DIR}/../../test/Resources"

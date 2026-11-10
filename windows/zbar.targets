@@ -8,7 +8,7 @@
       <AdditionalIncludeDirectories>$(ZbarInstall)\include;$(ProjectDir)support;$(ProjectDir)include;$(ProjectDir)4D Plugin API;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(ZbarInstall)\lib\zbar.lib;$(ZbarInstall)\lib\win_iconv.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ZbarInstall)\lib\zbar.lib;$(ZbarInstall)\lib\win_iconv.lib;Windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Target Name="BuildWindowsZbar" BeforeTargets="PrepareForBuild">

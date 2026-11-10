@@ -23,7 +23,7 @@ ZBAR scans a 4D `Picture` for barcodes and returns what it finds as an `Object`.
 - The second parameter (`types`) is optional. The plugin's own test method calls `ZBAR` with only the picture argument, and the plugin explicitly handles a missing/empty collection.
 - **`success` being `false` never comes with an error message or code.** It covers three different situations identically: no picture was supplied, the picture couldn't be decoded, or the picture was read fine but no barcode was found in it. See [Error handling](#error-handling--troubleshooting).
 - **Confidence values are not a percentage.** zbar itself documents this figure as an unscaled, relative quantity — only the ordering between two values is meaningful, not the absolute number.
-- The plugin converts the picture to grayscale differently per platform (Core Graphics on macOS, GDI+ on Windows) and samples a different color channel while doing so on each platform. For ordinary black-and-white barcodes this makes no practical difference; for a heavily tinted or anti-aliased image, the two platforms could theoretically read slightly different intensity values for the same picture.
+- The plugin converts the picture to grayscale differently per platform (Core Graphics on macOS, GDI+ on Windows). Color calibration, JPEG rounding and weak grayscale edges can affect detection even when an image's red, green and blue channels are identical. Windows also has a no-match intensity retry, described below; neither conversion guarantees identical results across platforms.
 - This reference documents the current, defensively-hardened version of the plugin's source. An unusually large or corrupt picture used to be able to freeze the host application; the current source guarantees a `success:false` result is always returned instead. If you're running an older compiled build, confirm it was built from the fixed source before relying on that guarantee.
 
 ---
@@ -104,6 +104,24 @@ UPC-A or `New collection(13; 10)` for ISBN-10). Enabling the derived form alone
 does not enable its EAN-13 base decoder; this behavior is unchanged from the
 former Windows library.
 
+**Windows no-match retry.** The first scan still uses the original GDI+ red-channel
+Y800 buffer. A successful first scan is returned unchanged. Only a normal
+zero-symbol return triggers one additional scan, with the same dimensions,
+scanner configuration and `types` filter. Negative scanner returns are errors,
+not no-match results, and never trigger a retry.
+
+For the second scan, Windows Imaging Component (WIC) maps neutral sRGB
+intensities to an ICC v2 RGB space with sRGB primaries and a gamma 1.8 curve.
+WIC converts a 256-entry intensity ramp once per process; subsequent retries
+apply that lookup table to a separate Y800 buffer. There is no resize, crop,
+binarization, external color library or change to zbar's edge thresholds.
+This is a best-effort intensity adjustment, not a reconstruction of an image's
+embedded profile or an emulation of macOS Generic RGB. Applying it unconditionally
+can lose low-contrast detections, which is why the original scan always runs
+first. A no-match call can take longer and may now return a newly detected symbol;
+applications should continue validating decoded content as appropriate.
+The macOS conversion and scan path do not use this retry.
+
 ### Example
 
 From the plugin's own test method (`TEST.4dm`) — scans every picture file found in the current resources folder:
@@ -179,10 +197,11 @@ End if
 ## Error handling & troubleshooting
 
 - **`success` is `False` with no `values` property at all.** This is the response for every failure/no-match case — an omitted or empty picture, an undecodable picture, and "picture decoded fine but no barcode was found" are all indistinguishable from the caller's side. Don't reference `.values` before checking `.success`.
+- **Windows conversion or scanner errors.** Failed pixel reads, WIC/COM failures, allocation failures and negative scanner returns produce `success:false`, without adding an error property. Diagnostic messages are emitted to the Windows debugger output (`OutputDebugString`); they do not contain image pixels or decoded content. An ordinary no-match return does not emit an error.
 - **PDF417 is not supported on Windows.** Upstream zbar's PDF417 decoder is incomplete and is disabled in this build. The macOS build also has a known PDF417 limitation. Code `57` remains in the public constants for compatibility, but cannot be used to obtain PDF417 results.
 - **`confidence` is not a percentage or an accuracy score.** Treat it strictly as a relative ranking between symbols detected in the same call — a `confidence` of `40` isn't "40% sure," and isn't comparable across separate calls.
 - **A value in the `types` filter seems to be ignored.** Only elements the plugin reads as a `Real` numeric value are honored; make sure the collection was built with ordinary numeric literals (e.g. `New collection(64; 13)`), not values that end up with a different internal numeric kind.
-- **Results can differ subtly between macOS and Windows for the same picture.** The two platforms extract grayscale intensity from a different color channel internally. This has no practical effect on plain black-and-white barcodes, but is worth knowing if you see a platform-specific miss on a heavily tinted or anti-aliased image.
+- **Results can differ between macOS and Windows for the same picture.** Their conversion and retry paths differ. Even neutral grayscale images can be sensitive to small intensity differences around barcode edges; a newer image-decoding API alone does not guarantee identical detection.
 - **Large or high-resolution pictures can make a call noticeably slower, particularly on Windows.** The scan runs synchronously on the calling thread. Windows now uses standard upstream zbar without the historical custom scan yield callback. Windows schedules other OS threads, but the calling 4D thread still blocks until decoding finishes; UI responsiveness is not guaranteed by the OS or a newer 4D version. The existing per-row `PA_YieldAbsolute` calls during Windows picture conversion remain. Downsize very large pictures before scanning when appropriate.
 - **Windows crashes during scanning in older builds.** The former custom Windows zbar 0.11 library required a yield callback and interval. Builds that used a two-argument declaration with that library could call an invalid callback address and crash with an execute access violation (`0xC0000005`). Version 2.2.7 restored the matching custom ABI. The current source instead builds standard zbar 0.23.95 and uses its matching two-argument header and library together. Rebuild and replace the Windows plugin; removing callback arguments while retaining the old binary library is unsafe. The macOS library is unchanged.
 
@@ -245,6 +264,13 @@ job also builds a separate, checksum-verified legacy scanner test from commit
 only to that historical test library. It records decoder defaults and runs
 the same fixtures for migration comparison; the old library is never linked
 into the modern plugin or included in release artifacts.
+
+The modern scanner tests call the same Windows retry helper as the plugin.
+They verify that existing fixture successes and 80 synthetic low-contrast
+scan cases retain their first-pass results, that a public synthetic QR can be
+recovered by retry, that excluded types stay excluded during retry, and that
+negative scan returns are not retried. These fixtures contain no private images
+or private barcode content.
 
 The supported default enable/config flags match that historical library:
 EAN-8, EAN-13, I25, DataBar/Expanded, Codabar, Code 39/93/128, and QR are enabled.

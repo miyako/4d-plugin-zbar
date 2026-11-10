@@ -9,6 +9,11 @@
  # --------------------------------------------------------------------------------*/
 
 #include "4DPlugin-ZBAR.h"
+#include <exception>
+#if VERSIONWIN
+#include "windows\scanner.h"
+#include <limits>
+#endif
 
 #pragma mark -
 
@@ -125,8 +130,12 @@ void ZBAR(PA_PluginParameters params) {
             }
             
 #else
+            if (image->GetLastStatus() != Gdiplus::Ok)
+                throw std::runtime_error("Native GDI+ bitmap is invalid");
             size_t w = image->GetWidth();
             size_t h = image->GetHeight();
+            if (!w || !h || w > (std::numeric_limits<unsigned long>::max)() / h)
+                throw std::length_error("Native bitmap exceeds the Y800 size limit");
             
             size_t size = w * h;
             std::vector<uint8_t> buf(size);
@@ -139,7 +148,8 @@ void ZBAR(PA_PluginParameters params) {
                 for(size_t x = 0; x < w; x++) {
                     
                     Gdiplus::Color c;
-                    image->GetPixel(x,y,&c);
+                    if (image->GetPixel(x,y,&c) != Gdiplus::Ok)
+                        throw std::runtime_error("GDI+ GetPixel failed");
                     
                     y8 = c.GetR();
                     buf[i] = y8;
@@ -150,6 +160,9 @@ void ZBAR(PA_PluginParameters params) {
             
             /* create a reader */
             zScanner = zbar_image_scanner_create();
+#if VERSIONWIN
+            if (!zScanner) throw std::runtime_error("Cannot allocate zbar scanner");
+#endif
             
             if(zScanner && types) {
                 
@@ -168,6 +181,9 @@ void ZBAR(PA_PluginParameters params) {
 
             /* wrap image data */
             zImage = zbar_image_create();
+#if VERSIONWIN
+            if (!zImage) throw std::runtime_error("Cannot allocate zbar image");
+#endif
             
             if(zScanner && zImage) {
             
@@ -176,10 +192,14 @@ void ZBAR(PA_PluginParameters params) {
             zbar_image_set_data(zImage, &buf[0], w * h, NULL);
             
             /* scan the image for barcodes */
-            unsigned int n = zbar_scan_image(zScanner, zImage);
-            unsigned int count = 0;
+#if VERSIONWIN
+            const int n = windows_zbar::scanImage(zScanner, zImage);
+            if (n < 0) throw std::runtime_error("zbar scan failed");
+#else
+            const int n = zbar_scan_image(zScanner, zImage);
+#endif
             
-            if(n) {
+            if(n > 0) {
 
                 /* extract results */
                 const zbar_symbol_t *symbol = zbar_image_first_symbol(zImage);
@@ -228,6 +248,14 @@ void ZBAR(PA_PluginParameters params) {
     }
 
     } // end try
+    catch(const std::exception& error)
+    {
+#if VERSIONWIN
+        OutputDebugStringA("ZBAR: ");
+        OutputDebugStringA(error.what());
+        OutputDebugStringA("\n");
+#endif
+    }
     catch(...)
     {
         // Make sure a scan that throws (e.g. std::bad_alloc/std::length_error from an
@@ -236,6 +264,9 @@ void ZBAR(PA_PluginParameters params) {
         // that would leave 4D waiting forever on a command whose manifest syntax
         // ("ZBAR(&P;&C):J") declares a return value. `returnValue` already has
         // success=false from the top of this function, so no extra state to reset.
+#if VERSIONWIN
+        OutputDebugStringA("ZBAR: unexpected failure\n");
+#endif
     }
 
     // Runs on every path, including the exception path above, so a thrown exception
