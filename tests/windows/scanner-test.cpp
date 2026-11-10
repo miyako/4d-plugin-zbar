@@ -7,6 +7,7 @@ using std::max;
 #include <zbar.h>
 #ifndef LEGACY_ZBAR
 #include <iconv.h>
+#include "..\..\windows\scanner.h"
 #endif
 #include <chrono>
 #include <iostream>
@@ -59,7 +60,8 @@ struct Result {
 };
 
 static std::vector<Result> scan(const Picture& picture,
-    const std::vector<zbar_symbol_type_t>& filters)
+    const std::vector<zbar_symbol_type_t>& filters, bool* retried = nullptr,
+    bool retry = true)
 {
     std::unique_ptr<zbar_image_scanner_t, decltype(&zbar_image_scanner_destroy)>
         scanner(zbar_image_scanner_create(), zbar_image_scanner_destroy);
@@ -86,8 +88,11 @@ static std::vector<Result> scan(const Picture& picture,
         static_cast<unsigned long>(picture.pixels.size()), nullptr);
 #ifdef LEGACY_ZBAR
     const int count = zbar_scan_image(scanner.get(), image.get(), []() {}, 0x2000);
+    if (retried) *retried = false;
 #else
-    const int count = zbar_scan_image(scanner.get(), image.get());
+    const int count = retry ? windows_zbar::scanImage(scanner.get(), image.get()) :
+        zbar_scan_image(scanner.get(), image.get());
+    if (retried) *retried = zbar_image_get_data(image.get()) != picture.pixels.data();
 #endif
     require(count >= 0, "Scanner returned an error");
     std::vector<Result> results;
@@ -112,6 +117,93 @@ static std::vector<Result> scan(const Picture& picture, zbar_symbol_type_t only 
 }
 
 #ifndef LEGACY_ZBAR
+static void checkFallback(const Picture& qr)
+{
+    const auto map = windows_zbar::createRetryMap();
+    require(map.front() <= 2 && map.back() >= 254 && map[128] < 128,
+        "Retry must use a nonlinear, darkening intensity map");
+    for (size_t i = 1; i < map.size(); ++i)
+        require(map[i] >= map[i - 1], "Retry intensity map must be monotonic");
+    {
+        struct Apartment {
+            HRESULT result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+            ~Apartment() { if (SUCCEEDED(result)) CoUninitialize(); }
+        } apartment;
+        require(SUCCEEDED(apartment.result), "Cannot initialize MTA test");
+        require(windows_zbar::createRetryMap() == map,
+            "WIC retry map changed in an existing MTA apartment");
+    }
+    unsigned preserved = 0, convertedMisses = 0;
+    for (unsigned background : {0u, 8u, 16u, 32u, 64u, 100u, 160u, 220u}) {
+        for (unsigned range : {255u, 40u, 20u, 16u, 12u, 8u}) {
+            if (background + range > 255) continue;
+            Picture low = qr, converted = qr;
+            for (size_t i = 0; i < qr.pixels.size(); ++i) {
+                low.pixels[i] = static_cast<unsigned char>(
+                    background + qr.pixels[i] * range / 255);
+                converted.pixels[i] = map[low.pixels[i]];
+            }
+            for (const auto& filter : {std::vector<zbar_symbol_type_t>{},
+                                      std::vector<zbar_symbol_type_t>{ZBAR_QRCODE}}) {
+                const auto baseline = scan(low, filter, nullptr, false);
+                require(baseline.size() == 1 && baseline[0].data == "abcd",
+                    "Low-contrast baseline fixture must decode");
+                bool retried = true;
+                require(scan(low, filter, &retried) == baseline && !retried,
+                    "Retry changed an existing low-contrast success");
+                ++preserved;
+                convertedMisses += scan(converted, filter, nullptr, false).empty();
+            }
+        }
+    }
+    require(preserved == 80 && convertedMisses > 0,
+        "Low-contrast regression controls did not exercise conversion losses");
+
+    Picture rescued{};
+    bool found = false;
+    for (unsigned background : {128u, 160u, 192u, 220u, 240u}) {
+        for (unsigned range = 2; range <= 8 && !found; ++range) {
+            Picture candidate = qr;
+            for (auto& pixel : candidate.pixels)
+                pixel = static_cast<unsigned char>(background + pixel * range / 255);
+            if (!scan(candidate, std::vector<zbar_symbol_type_t>{ZBAR_QRCODE},
+                      nullptr, false).empty()) continue;
+            bool retried = false;
+            const auto result = scan(candidate,
+                std::vector<zbar_symbol_type_t>{ZBAR_QRCODE}, &retried);
+            if (result.size() == 1 && result[0].data == "abcd" && retried) {
+                rescued = std::move(candidate);
+                found = true;
+            }
+        }
+    }
+    require(found, "Public synthetic QR did not exercise successful retry");
+    const auto expected = scan(qr, ZBAR_QRCODE);
+    for (int repeat = 0; repeat < 3; ++repeat) {
+        bool retried = false;
+        require(scan(rescued, std::vector<zbar_symbol_type_t>{}, &retried) == expected &&
+            retried, "Default retry did not recover exact QR payload");
+        require(scan(rescued, std::vector<zbar_symbol_type_t>{ZBAR_PDF417, ZBAR_QRCODE}) ==
+            expected, "Mixed filter lost QR during retry");
+    }
+    require(scan(rescued, ZBAR_CODE128).empty(), "Retry ignored QR exclusion");
+    require(scan(rescued, ZBAR_PDF417).empty(), "Retry enabled default decoders");
+
+    std::unique_ptr<zbar_image_scanner_t, decltype(&zbar_image_scanner_destroy)>
+        scanner(zbar_image_scanner_create(), zbar_image_scanner_destroy);
+    std::unique_ptr<zbar_image_t, decltype(&zbar_image_destroy)>
+        image(zbar_image_create(), zbar_image_destroy);
+    require(scanner && image, "Negative-return test allocation failed");
+    const unsigned char pixel = 0;
+    zbar_image_set_format(image.get(), zbar_fourcc('B', 'A', 'D', '!'));
+    zbar_image_set_size(image.get(), 1, 1);
+    zbar_image_set_data(image.get(), &pixel, 1, nullptr);
+    require(windows_zbar::scanImage(scanner.get(), image.get()) < 0 &&
+        zbar_image_get_data(image.get()) == &pixel,
+        "Negative scan return incorrectly triggered a retry");
+    std::cout << "WIC retry, exclusion, error, and 80 low-contrast controls passed\n";
+}
+
 static void checkEncoding()
 {
     iconv_t converter = iconv_open("UTF-8", "SJIS");
@@ -185,7 +277,10 @@ int wmain(int argc, wchar_t** argv)
         };
         for (const auto& fixture : fixtures) {
             const auto picture = load(root + fixture.file);
-            const auto results = scan(picture, fixture.type);
+            bool retried = true;
+            const auto results = scan(picture,
+                std::vector<zbar_symbol_type_t>{fixture.type}, &retried);
+            require(!retried, "Existing successful fixture must not be retried");
             require(results.size() == 1 && results[0].type == fixture.type &&
                 results[0].data == fixture.data,
                 "Fixture did not decode as the requested type");
@@ -214,6 +309,9 @@ int wmain(int argc, wchar_t** argv)
         std::cout << "UTF-8 and Shift-JIS QR golden payloads passed\n";
 
         const auto qr = load(root + L"qrcode.png");
+#ifndef LEGACY_ZBAR
+        checkFallback(qr);
+#endif
         const auto expected = scan(qr, ZBAR_QRCODE);
         require(scan(qr, ZBAR_PDF417).empty(), "PDF417-only filter enabled QR implicitly");
         require(scan(qr, std::vector<zbar_symbol_type_t>{ZBAR_PDF417, ZBAR_QRCODE}) == expected,

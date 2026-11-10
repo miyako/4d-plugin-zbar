@@ -36,6 +36,7 @@
     <ClInclude Include="4D Plugin API\PublicTypes.h" />
     <ClInclude Include="4DPlugin-ZBAR.h" />
     <ClInclude Include="support\4DPlugin-JSON.h" />
+    <ClInclude Include="windows\scanner.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="4D Plugin API\4DPluginAPI.def" />
