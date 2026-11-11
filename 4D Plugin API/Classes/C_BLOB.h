@@ -81,6 +81,9 @@ extern "C" {
 		C_BLOB();
 		~C_BLOB();
 		
+		C_BLOB(const C_BLOB&) = delete;
+		C_BLOB& operator=(const C_BLOB&) = delete;
+
 	};
 	
 #ifdef __cplusplus
