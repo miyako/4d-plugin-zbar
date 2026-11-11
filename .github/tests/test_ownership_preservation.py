@@ -15,12 +15,56 @@ class PreservationTests(unittest.TestCase):
         editable = {
             "4D Plugin API/Classes/ARRAY_TEXT.h", "4D Plugin API/Classes/C_BLOB.h",
             "4DPlugin-ZBAR.cpp", "support/4DPlugin-JSON.cpp", "README.md",
+            ".github/workflows/windows.yml",
         }
         tracked = set(subprocess.check_output(
             ["git", "ls-tree", "-r", "--name-only", BASELINE], cwd=ROOT, text=True).splitlines())
         changed = set(subprocess.check_output(
             ["git", "diff", "--name-only", BASELINE, "--"], cwd=ROOT, text=True).splitlines())
         self.assertEqual((tracked & changed) - editable, set())
+
+    def test_windows_exclusion_is_exact_and_preserves_every_step(self):
+        baseline = subprocess.check_output(
+            ["git", "show", f"{BASELINE}:.github/workflows/windows.yml"],
+            cwd=ROOT, text=True)
+        expected = baseline.replace(
+            "branches-ignore: [master]",
+            "branches-ignore: [master, miyako-zbar-ownership]",
+        ).replace(
+            "  windows:\n",
+            "  windows:\n"
+            "    if: github.head_ref != 'miyako-zbar-ownership' && "
+            "github.ref != 'refs/heads/miyako-zbar-ownership'\n",
+        )
+        self.assertEqual((ROOT / ".github/workflows/windows.yml").read_text(), expected)
+        self.assertEqual(re.findall(r"^  (\w+):$", expected.split("jobs:\n")[1], re.M),
+                         ["windows"])
+
+    def test_windows_event_matrix(self):
+        workflow = (ROOT / ".github/workflows/windows.yml").read_text()
+        ignored = re.search(r"branches-ignore: \[([^]]+)\]", workflow).group(1).split(", ")
+        gate = re.search(r"^    if: (.+)$", workflow, re.M).group(1)
+        predicates = re.findall(r"github\.(head_ref|ref) != '([^']+)'", gate)
+        self.assertEqual(len(predicates), 2)
+        cases = [
+            ("audit-push", "push", "", "refs/heads/miyako-zbar-ownership", False),
+            ("audit-pr-master", "pull_request", "miyako-zbar-ownership", "refs/pull/1/merge", False),
+            ("audit-pr-other-base", "pull_request", "miyako-zbar-ownership", "refs/pull/2/merge", False),
+            ("audit-manual", "workflow_dispatch", "", "refs/heads/miyako-zbar-ownership", False),
+            ("other-push", "push", "", "refs/heads/feature", True),
+            ("similar-push", "push", "", "refs/heads/miyako-zbar-ownership-more", True),
+            ("other-pr-master", "pull_request", "feature", "refs/pull/3/merge", True),
+            ("similar-pr", "pull_request", "miyako-zbar-ownership-more", "refs/pull/4/merge", True),
+            ("master-merge-push", "push", "", "refs/heads/master", False),
+            ("master-manual", "workflow_dispatch", "", "refs/heads/master", True),
+            ("other-manual", "workflow_dispatch", "", "refs/heads/feature", True),
+        ]
+        for name, event, head, ref, expected in cases:
+            with self.subTest(event=name):
+                triggered = event != "push" or ref.removeprefix("refs/heads/") not in ignored
+                context = {"head_ref": head, "ref": ref}
+                admitted = all(context[key] != value for key, value in predicates)
+                self.assertEqual(triggered and admitted, expected)
 
     def test_exact_complete_sdk_blobs(self):
         import hashlib

@@ -7,7 +7,9 @@ Canonical guidance read through the GitHub contents API at
 `miyako/skills@e6b492fcb81e5e1a7f7db723594b420e63bf6eb9`,
 `4d-skills/skills/4dplugin/SKILL.md`.
 Issue: #4. No SDK upgrade, engine ABI/header rewrite, project, manifest,
-version, packaged binary or existing release-workflow changes.
+version, packaged binary or existing release-workflow changes. The user
+subsequently authorized only the exact audit-branch exclusion in the existing
+Windows validation workflow, described below.
 
 The bundled SDK implementation calls itself v14, while its public headers
 call themselves v13; neither is an independently verified upstream release.
@@ -162,7 +164,7 @@ supplementary characters, empty strings, allocated/null engine empties,
 successful wrong-kind owning returns, poisoned/zeroed failures, setter
 rejection, callback allocation failure, matching collection handoff, scalar
 and array controls, actual result object shapes and exception cleanup.
-Five preservation tests separately protect SDK blobs, public manifest,
+Seven preservation tests separately protect SDK blobs, public manifest,
 all production build memberships, baseline protected paths and the narrow
 new workflow. Temporary unsigned executables/archives are automatically
 cleaned; optional JSON/log outputs can be retained as session artifacts.
@@ -194,12 +196,21 @@ Python 3.12 and installs no Python packages.
   phase and shared scheme was inspected. Xcode Deployment invokes signing,
   DMG/ZIP packaging and notarization; the shared launch/profile scheme uses
   Deployment. MSBuild invokes dependency downloads/build/install.
-* Existing `windows.yml` runs on every non-master branch push and every PR,
+* Baseline `windows.yml` runs on every non-master branch push and every PR,
   builds the plugin, uses filesystem/image-codec fixture operations,
   packages relink materials and uploads binaries/archives. No push or PR
-  is authorized by the isolated-test permission alone. Explicit coordinator
-  or user approval is required before triggering that workflow; existing
-  release/project files are not changed to bypass it.
+  is authorized by the isolated-test permission alone. The user explicitly
+  selected "Allow the audit-branch exclusion (Recommended)" through the
+  coordinator. The authorized change adds only `miyako-zbar-ownership` to
+  push branches-ignore and a job-level head_ref/ref exclusion for that exact
+  branch. PR branch filters select the base, so the PR exclusion uses
+  `github.head_ref`, not a PR base-branch filter. The sole Windows job and
+  both matrix configurations are skipped before runner allocation, including
+  every build, codec, packaging and upload step. All existing steps remain
+  byte-for-byte unchanged. Eleven named event cases cover audit push/PR,
+  other and similar branches, master merge-push, and manual events. Normal
+  non-audit behavior and the existing master-push exclusion are preserved.
+  This authorizes no actual Windows build, upload or manual dispatch.
 * Existing `release.yml` is tags/manual only; `bump-version.yml` is manual.
   Neither is dispatched. The new ownership workflow is read-only,
   unsigned, standard-library-only, and limited to relevant paths and the
