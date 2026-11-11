@@ -64,6 +64,9 @@ public:
 	ARRAY_TEXT();
 	~ARRAY_TEXT();
 
+	ARRAY_TEXT(const ARRAY_TEXT&) = delete;
+	ARRAY_TEXT& operator=(const ARRAY_TEXT&) = delete;
+
 };
 
 #ifdef __cplusplus

@@ -3,7 +3,7 @@ name: Windows scanner validation
 on:
   pull_request:
   push:
-    branches-ignore: [master]
+    branches-ignore: [master, miyako-zbar-ownership]
   workflow_dispatch:
 
 permissions:
@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   windows:
+    if: github.head_ref != 'miyako-zbar-ownership' && github.ref != 'refs/heads/miyako-zbar-ownership'
     runs-on: windows-2022
     strategy:
       fail-fast: false

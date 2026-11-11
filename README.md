@@ -209,6 +209,11 @@ End if
 
 ## Building on Windows
 
+For unsigned, synthetic native ownership regression checks (without building
+the plugin, using real images/devices, or invoking release scripts), see the
+[ownership audit and isolated test command](.github/tests/ownership-audit.md).
+These checks do not replace testing inside an actual 4D host.
+
 Install Visual Studio 2022 (or Build Tools) with **Desktop development with C++**,
 the v143 MSVC tools, Windows 10/11 SDK, and **C++ CMake tools for Windows**
 (CMake 3.24 or newer on `PATH`). PowerShell 5.1 or newer is required. Open a

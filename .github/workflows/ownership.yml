@@ -1,0 +1,28 @@
+name: Native ownership
+
+on:
+  push:
+    branches: [miyako-zbar-ownership, master]
+    paths:
+      - '.github/tests/**'
+      - '.github/workflows/ownership.yml'
+      - '4D Plugin API/**'
+      - '4DPlugin-ZBAR.cpp'
+      - '4DPlugin-ZBAR.h'
+      - 'support/**'
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-ownership:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Unsigned synthetic actual-source ownership and immutable baseline
+        run: python3 -m unittest discover -s .github/tests -p 'test_ownership*.py' -v

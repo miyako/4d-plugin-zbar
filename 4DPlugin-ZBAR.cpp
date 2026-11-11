@@ -171,9 +171,13 @@ void ZBAR(PA_PluginParameters params) {
                     zbar_image_scanner_set_config(zScanner, ZBAR_NONE, ZBAR_CFG_ENABLE, 0);
                     for(PA_long32 i = 0; i < countTypes; ++i) {
                         PA_Variable v = PA_GetCollectionElement(types, i);
-                        if(PA_GetVariableKind(v) == eVK_Real) {
-							zbar_symbol_type_t type = (zbar_symbol_type_t)(int)PA_GetRealVariable(v);
-                            zbar_image_scanner_set_config(zScanner, type, ZBAR_CFG_ENABLE, 1);
+                        const PA_ErrorCode error = PA_GetLastError();
+                        if(error == eER_NoErr) {
+                            if(PA_GetVariableKind(v) == eVK_Real) {
+                                zbar_symbol_type_t type = (zbar_symbol_type_t)(int)PA_GetRealVariable(v);
+                                zbar_image_scanner_set_config(zScanner, type, ZBAR_CFG_ENABLE, 1);
+                            }
+                            PA_ClearVariable(&v);
                         }
                     }
                 }
@@ -233,7 +237,7 @@ void ZBAR(PA_PluginParameters params) {
 						found = true;
                     }
 
-					PA_Variable v = PA_CreateVariable(eVK_ArrayObject);
+					PA_Variable v = PA_CreateVariable(eVK_Undefined);
 					PA_SetObjectVariable(&v, barObj);
 					PA_SetCollectionElement(values, PA_GetCollectionLength(values), v);
 					PA_ClearVariable(&v);
